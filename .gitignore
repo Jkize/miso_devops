@@ -4,6 +4,9 @@
 # Indice local de CodeGraph
 /.codegraph/
 
+# Registros y descargas locales del navegador
+/.playwright-mcp/
+
 # Credenciales y configuracion local
 .env
 .env.*

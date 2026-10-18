@@ -124,16 +124,21 @@ Publicar su documentación desde Postman y añadir la URL al informe de entrega.
 ## Preparación para Elastic Beanstalk
 
 `Procfile` inicia Gunicorn en Linux. Usar una plataforma Python compatible con las
-dependencias fijadas. Configurar `DATABASE_URL`, `JWT_SECRET_KEY` y `APP_VERSION`
-en el entorno, y ejecutar migraciones una sola vez mediante un procedimiento
-controlado antes de desplegar versiones que dependan de ellas.
+dependencias fijadas. Configurar `DATABASE_URL` y `JWT_SECRET_KEY`
+en el entorno antes de cargar el ZIP. `.ebextensions/01_migrations.config`
+ejecuta `flask db upgrade` en una sola instancia durante cada despliegue manual;
+si el esquema ya está actualizado, no aplica cambios. Un fallo de migración
+detiene el despliegue. No ejecutar despliegues concurrentes contra la misma base.
 
 `TRUSTED_PROXY_HOPS` es 0 localmente: cabeceras `X-Forwarded-For` no se aceptan.
 En AWS, verificar la cadena real balanceador/proxy y restringir el acceso directo
 a instancias antes de ajustar ese valor. Un valor incorrecto permite falsificar IP.
 
 Preparar un ZIP de código con `application.py`, `requirements.txt`, `Procfile`,
-`blacklist_service/` y `migrations/` en la raíz. Excluir material del curso,
+`blacklist_service/`, `migrations/` y `.ebextensions/` en la raíz. Excluir material del curso,
 credenciales, entorno virtual, cachés y `.git`. Un ZIP manual no respeta
-automáticamente `.gitignore`. Configurar `/health` como ruta de health check.
-La implementación en AWS y la publicación Postman siguen pendientes.
+automáticamente `.gitignore`. `.ebextensions/02_healthcheck.config` configura
+`/health` como ruta de health check con respuesta esperada HTTP 200.
+La API ya fue verificada en AWS. La versión del experimento se define en
+`application.py` y se muestra en `/health`: `exp01-all-at-once`.
+La publicación de Postman y los cuatro experimentos de despliegue siguen pendientes.
