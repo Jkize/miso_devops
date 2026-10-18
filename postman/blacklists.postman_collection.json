@@ -1,0 +1,645 @@
+{
+  "info": {
+    "name": "Lista negra global",
+    "description": "API Entrega 1. Ejecutar en orden. Token JWT local valido por siete dias; no publicar su valor. Cada corrida genera correos distintos. Respuestas JSON. 503 indica indisponibilidad de base de datos. Normalizacion: email en minusculas y sin espacios exteriores.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (pm.info.requestName.startsWith(\"01\")) {",
+          "  const suffix = pm.variables.replaceIn(\"{{$guid}}\");",
+          "  pm.collectionVariables.set(\"blocked_email\", `blocked-${suffix}@example.com`);",
+          "  pm.collectionVariables.set(\"missing_email\", `missing-${suffix}@example.com`);",
+          "  pm.collectionVariables.set(\"optional_email\", `optional-${suffix}@example.com`);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Consulta sin registro",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/blacklists/{{missing_email}}",
+        "description": "Consulta un email que no se ha registrado. Devuelve HTTP 200 y blacklisted=false."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"No bloqueado\", () => pm.expect(pm.response.json()).to.deep.equal({blacklisted:false,blocked_reason:null}));"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "Ejemplo 200",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/blacklists/{{missing_email}}",
+            "description": "Consulta un email que no se ha registrado. Devuelve HTTP 200 y blacklisted=false."
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"blacklisted\": false,\n  \"blocked_reason\": null\n}"
+        }
+      ]
+    },
+    {
+      "name": "02 - Agregar correo",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/blacklists",
+        "description": "email y app_uuid son obligatorios. blocked_reason es opcional, maximo 255 caracteres. El servidor registra IP y fecha UTC.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{blocked_email}}\",\n  \"app_uuid\": \"94b8097c-e7ab-4e50-9035-eabda6514e81\",\n  \"blocked_reason\": \"Solicitud del cliente\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "Ejemplo 201",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/blacklists",
+            "description": "email y app_uuid son obligatorios. blocked_reason es opcional, maximo 255 caracteres. El servidor registra IP y fecha UTC.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{blocked_email}}\",\n  \"app_uuid\": \"94b8097c-e7ab-4e50-9035-eabda6514e81\",\n  \"blocked_reason\": \"Solicitud del cliente\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Created",
+          "code": 201,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"Correo agregado a la lista negra.\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "03 - Consultar bloqueado",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/blacklists/{{blocked_email}}",
+        "description": ""
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"Bloqueado y motivo\", () => pm.expect(pm.response.json()).to.deep.equal({blacklisted:true,blocked_reason:\"Solicitud del cliente\"}));"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "Ejemplo 200",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/blacklists/{{blocked_email}}",
+            "description": ""
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"blacklisted\": true,\n  \"blocked_reason\": \"Solicitud del cliente\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "04 - Duplicado",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/blacklists",
+        "description": "",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{blocked_email}}\",\n  \"app_uuid\": \"94b8097c-e7ab-4e50-9035-eabda6514e81\",\n  \"blocked_reason\": \"Solicitud del cliente\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "Ejemplo 409",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/blacklists",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{blocked_email}}\",\n  \"app_uuid\": \"94b8097c-e7ab-4e50-9035-eabda6514e81\",\n  \"blocked_reason\": \"Solicitud del cliente\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Conflict",
+          "code": 409,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"El correo ya esta en la lista negra.\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "05 - UUID invalido",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/blacklists",
+        "description": "",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{blocked_email}}\",\n  \"app_uuid\": \"invalid\",\n  \"blocked_reason\": \"Solicitud del cliente\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "Ejemplo 400",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/blacklists",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{blocked_email}}\",\n  \"app_uuid\": \"invalid\",\n  \"blocked_reason\": \"Solicitud del cliente\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"Datos invalidos.\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "06 - Email invalido",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/blacklists",
+        "description": "",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"invalid\",\n  \"app_uuid\": \"94b8097c-e7ab-4e50-9035-eabda6514e81\",\n  \"blocked_reason\": \"Solicitud del cliente\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "Ejemplo 400",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/blacklists",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"invalid\",\n  \"app_uuid\": \"94b8097c-e7ab-4e50-9035-eabda6514e81\",\n  \"blocked_reason\": \"Solicitud del cliente\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"Datos invalidos.\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "07 - Motivo demasiado largo",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/blacklists",
+        "description": "",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{blocked_email}}\",\n  \"app_uuid\": \"94b8097c-e7ab-4e50-9035-eabda6514e81\",\n  \"blocked_reason\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "Ejemplo 400",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/blacklists",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{blocked_email}}\",\n  \"app_uuid\": \"94b8097c-e7ab-4e50-9035-eabda6514e81\",\n  \"blocked_reason\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"Datos invalidos.\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "08 - POST sin token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/blacklists",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{blocked_email}}\",\n  \"app_uuid\": \"94b8097c-e7ab-4e50-9035-eabda6514e81\",\n  \"blocked_reason\": \"Solicitud del cliente\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "Ejemplo 401",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/blacklists",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{blocked_email}}\",\n  \"app_uuid\": \"94b8097c-e7ab-4e50-9035-eabda6514e81\",\n  \"blocked_reason\": \"Solicitud del cliente\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Unauthorized",
+          "code": 401,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"Se requiere un Bearer Token valido.\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "09 - GET sin token",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/blacklists/{{blocked_email}}",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "Ejemplo 401",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/blacklists/{{blocked_email}}",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "status": "Unauthorized",
+          "code": 401,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"Se requiere un Bearer Token valido.\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "10 - Motivo opcional",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/blacklists",
+        "description": "",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{optional_email}}\",\n  \"app_uuid\": \"94b8097c-e7ab-4e50-9035-eabda6514e81\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "Ejemplo 201",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/blacklists",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{optional_email}}\",\n  \"app_uuid\": \"94b8097c-e7ab-4e50-9035-eabda6514e81\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Created",
+          "code": 201,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"Correo agregado a la lista negra.\"\n}"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+# Material del curso (solo para consulta local)
+/task/
+
+# Indice local de CodeGraph
+/.codegraph/
+
+# Credenciales y configuracion local
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Entorno y archivos generados de Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+Desktop.ini
