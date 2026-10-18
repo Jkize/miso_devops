@@ -140,5 +140,5 @@ credenciales, entorno virtual, cachés y `.git`. Un ZIP manual no respeta
 automáticamente `.gitignore`. `.ebextensions/02_healthcheck.config` configura
 `/health` como ruta de health check con respuesta esperada HTTP 200.
 La API ya fue verificada en AWS. La versión del experimento se define en
-`application.py` y se muestra en `/health`: `exp03-additional-batch`.
+`application.py` y se muestra en `/health`: `exp04-immutable`.
 La publicación de Postman y los cuatro experimentos de despliegue siguen pendientes.
