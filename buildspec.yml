@@ -1,0 +1,46 @@
+version: 0.2
+
+env:
+  variables:
+    PYTHON_DOTENV_DISABLED: "1"
+    TRUSTED_PROXY_HOPS: "0"
+
+phases:
+  install:
+    runtime-versions:
+      python: "3.11"
+    commands:
+      - python --version
+      - python -m pip install -r requirements-dev.txt
+      - python -m pip check
+  pre_build:
+    commands:
+      # Limpiar solo las salidas del CI antes de cada ejecucion.
+      - rm -rf dist/ci
+      - mkdir -p dist/ci/reports
+  build:
+    commands:
+      - |
+        set -e
+        # 1. Pruebas unitarias con mocks y pruebas HTTP con SQLite.
+        python -m pytest tests/unit tests/test_api.py -v --junitxml=dist/ci/reports/pytest.xml
+        # 2. Si es correcto, preparar archivos para despliegue en AWS Elastic Beanstalk.
+        mkdir -p dist/ci/bundle
+        cp --parents application.py requirements.txt Procfile \
+          blacklist_service/*.py migrations/README migrations/alembic.ini \
+          migrations/env.py migrations/script.py.mako migrations/versions/*.py \
+          .ebextensions/*.config dist/ci/bundle/
+
+reports:
+  unit-and-api-tests:
+    files:
+      - pytest.xml
+    base-directory: dist/ci/reports
+    file-format: JUNITXML
+
+artifacts:
+  # 3. CodeBuild comprime esta carpeta y guarda el artefacto en S3.
+  base-directory: dist/ci/bundle
+  files:
+    - '**/*'
+    - '.ebextensions/**/*'

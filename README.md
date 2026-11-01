@@ -90,7 +90,9 @@ que las migraciones estén aplicadas: verificarlas antes de abrir tráfico.
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Las pruebas automáticas usan SQLite en memoria para aislar escenarios HTTP.
+`tests/unit/` verifica los endpoints con persistencia simulada mediante mocks,
+sin abrir conexiones de base de datos. Conserva routing, validaciones y JWT reales
+de prueba. `tests/test_api.py` usa SQLite en memoria para escenarios HTTP.
 La migración, los tipos PostgreSQL y la persistencia requieren verificación adicional
 contra PostgreSQL real; SQLite no reemplaza esa verificación.
 
@@ -120,6 +122,77 @@ Publicar su documentación desde Postman y añadir la URL al informe de entrega.
 - `tests/`: escenarios HTTP, autenticación, límites y datos de auditoría.
 - `postman/`: colección y environment sin secretos.
 - `compose.yaml`: PostgreSQL local, accesible solo desde loopback.
+- `buildspec.yml`: pruebas y generación de artefactos en AWS CodeBuild.
+
+## Integración continua (Entrega 2)
+
+Rama elegida: `main`. Flujo previsto: GitHub → CodePipeline Source → CodeBuild → S3.
+El pipeline termina en Build, sin etapa Deploy. El despliegue en Beanstalk sigue
+siendo manual. La configuración AWS y las ejecuciones remotas se verifican aparte;
+tener estos archivos no demuestra que el pipeline ya esté creado.
+
+El flujo está escrito directamente en `buildspec.yml`, sin scripts auxiliares:
+
+1. **install:** seleccionar Python 3.11 e instalar las dependencias.
+2. **pre_build:** limpiar `dist/ci/` y preparar la carpeta de reportes.
+3. **build:** ejecutar las pruebas; `set -e` detiene el bloque si alguna falla.
+   Si todas pasan, copiar únicamente archivos de aplicación a `dist/ci/bundle/`.
+4. **reports / artifacts:** conservar el reporte JUnit y empaquetar el contenido
+   de `bundle` como artefacto de CodeBuild en S3. No hay despliegue automático.
+
+Para ejecutar las mismas pruebas localmente, después de instalar
+`requirements-dev.txt` en un entorno Python 3.11:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit tests/test_api.py -v
+```
+
+| Archivo de pruebas | Qué verifica | Base de datos |
+| --- | --- | --- |
+| `tests/unit/test_endpoints.py` | Contrato POST, GET, autenticación y health | Sesión simulada con mocks; sin conexiones |
+| `tests/test_api.py` | Flujos HTTP, validaciones y persistencia dentro de cada caso | SQLite en memoria |
+| `tests/test_postgres.py` | Persistencia entre instancias de aplicación y tipos PostgreSQL | PostgreSQL real; ejecución optativa separada |
+
+El CI ejecuta explícitamente los dos primeros archivos/grupos. La prueba de
+PostgreSQL no forma parte de este comando; no se cuenta como aprobada. El servicio
+que se despliega conserva PostgreSQL. Las pruebas no requieren RDS ni tokens reales.
+
+| Escenario unitario | Resultado esperado |
+| --- | --- |
+| POST válido con JWT | 201 y datos enviados a persistencia |
+| POST con correo inválido | 400 sin guardar |
+| POST duplicado | 409 y rollback |
+| GET de correo bloqueado/no bloqueado | 200 con pertenencia y motivo correctos |
+| POST/GET sin JWT | 401 sin acceso a datos |
+| Health con base disponible/no disponible simulada | 200 / 503 |
+
+`PYTHON_DOTENV_DISABLED=1` evita leer `.env` durante el CI. Se generan:
+
+- `dist/ci/reports/pytest.xml`: resultado de las pruebas, incluso cuando hay fallos.
+- `dist/ci/bundle/`: archivos para desplegar; se crea solo tras aprobar las pruebas.
+
+La copia incluye `application.py`, `requirements.txt`, `Procfile`, módulos Python,
+migraciones y configuraciones de Beanstalk. Excluye `task/`, `.env`, tests y cachés.
+CodeBuild comprime esta carpeta: `application.py` queda en la raíz del artefacto,
+sin un ZIP dentro de otro. No hace falta crear otro ZIP mediante Python.
+
+Los comandos de limpieza/copia del buildspec son para Bash/Linux de CodeBuild.
+Usar una imagen compatible con Python 3.11, por ejemplo Ubuntu 22.04
+`aws/codebuild/standard:7.0`; verificar su disponibilidad al crear el proyecto.
+
+Al configurar AWS, usar Source y artefactos de tipo CodePipeline en CodeBuild,
+disparador de push a `main`, logs de CloudWatch y permisos del rol para escribir
+artefactos y reportes. El grupo de reportes necesita `CreateReportGroup`,
+`CreateReport`, `UpdateReport` y `BatchPutTestCases` sobre los recursos pertinentes.
+El rol de CI no necesita permisos para desplegar en Beanstalk.
+
+Para demostrar el fallo, modificar temporalmente una aserción de una prueba de
+endpoint, revisar el diff y publicar el commit autorizado. Guardar el SHA, logs y
+estado Failed antes de restaurar la aserción y verificar recuperación. No dejar
+la rama final con el fallo deliberado ni ejecutar este experimento sobre la API real.
+
+Referencias: [buildspec y reportes](https://docs.aws.amazon.com/codebuild/latest/userguide/build-spec-ref.html),
+[runtimes disponibles](https://docs.aws.amazon.com/codebuild/latest/userguide/available-runtimes.html).
 
 ## Preparación para Elastic Beanstalk
 
