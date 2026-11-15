@@ -13,9 +13,9 @@ RUN python -m pip install --no-cache-dir -r requirements.txt \
     && groupadd --gid 10001 app \
     && useradd --uid 10001 --gid app --no-log-init --create-home app
 
-COPY application.py ./
-COPY blacklist_service/ ./blacklist_service/
-COPY migrations/ ./migrations/
+COPY --chown=app:app application.py ./
+COPY --chown=app:app blacklist_service/ ./blacklist_service/
+COPY --chown=app:app migrations/ ./migrations/
 
 USER app
 EXPOSE 8000
