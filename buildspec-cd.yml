@@ -1,0 +1,45 @@
+version: 0.2
+
+env:
+  variables:
+    PYTHON_DOTENV_DISABLED: "1"
+    TRUSTED_PROXY_HOPS: "0"
+    ECR_REPOSITORY: "796458433751.dkr.ecr.us-east-1.amazonaws.com/blacklists-api"
+
+phases:
+  install:
+    runtime-versions:
+      python: "3.11"
+    commands:
+      - python -m pip install -r requirements-dev.txt
+      - python -m pip check
+  pre_build:
+    commands:
+      - mkdir -p dist/cd/reports
+  build:
+    commands:
+      - |
+        set -e
+        python -m pytest tests/unit tests/test_api.py -v --junitxml=dist/cd/reports/pytest.xml
+        IMAGE_TAG="build-${CODEBUILD_BUILD_ID##*:}"
+        aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "${ECR_REPOSITORY%/*}"
+        docker build --platform linux/amd64 -t "$ECR_REPOSITORY:$IMAGE_TAG" .
+        docker push "$ECR_REPOSITORY:$IMAGE_TAG"
+        mkdir -p dist/cd/deploy
+        printf '{"ImageURI":"%s"}\n' "$ECR_REPOSITORY:$IMAGE_TAG" > dist/cd/deploy/imageDetail.json
+        cp taskdef.json appspec.yaml dist/cd/deploy/
+        echo "Published image $ECR_REPOSITORY:$IMAGE_TAG"
+
+reports:
+  cd-tests:
+    files:
+      - pytest.xml
+    base-directory: dist/cd/reports
+    file-format: JUNITXML
+
+artifacts:
+  base-directory: dist/cd/deploy
+  files:
+    - imageDetail.json
+    - taskdef.json
+    - appspec.yaml

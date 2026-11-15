@@ -1,0 +1,33 @@
+{
+  "family": "blacklists-fargate",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::796458433751:role/blacklists-ecs-execution-role",
+  "runtimePlatform": {"operatingSystemFamily": "LINUX", "cpuArchitecture": "X86_64"},
+  "containerDefinitions": [
+    {
+      "name": "blacklists-api",
+      "image": "<IMAGE1_NAME>",
+      "essential": true,
+      "portMappings": [{"containerPort": 8000, "protocol": "tcp"}],
+      "environment": [
+        {"name": "APP_VERSION", "value": "fargate-v1"},
+        {"name": "TRUSTED_PROXY_HOPS", "value": "1"}
+      ],
+      "secrets": [
+        {"name": "DATABASE_URL", "valueFrom": "arn:aws:ssm:us-east-1:796458433751:parameter/blacklists/fargate/DATABASE_URL"},
+        {"name": "JWT_SECRET_KEY", "valueFrom": "arn:aws:ssm:us-east-1:796458433751:parameter/blacklists/fargate/JWT_SECRET_KEY"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/blacklists-fargate",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "api"
+        }
+      }
+    }
+  ]
+}

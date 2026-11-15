@@ -1,0 +1,15 @@
+# Permitir solo los archivos necesarios para ejecutar la API y sus migraciones.
+**
+!Dockerfile
+!.dockerignore
+!requirements.txt
+!application.py
+!blacklist_service/
+!blacklist_service/*.py
+!migrations/
+!migrations/**
+
+# Excluir caches incluso dentro de las carpetas permitidas.
+**/__pycache__
+**/*.pyc
+**/*.pyo

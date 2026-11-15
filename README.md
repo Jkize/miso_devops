@@ -1,7 +1,8 @@
 # API de lista negra global
 
 Microservicio Flask para agregar y consultar correos bloqueados. Persistencia en
-PostgreSQL y autenticación Bearer con JWT predefinido. El despliegue es manual.
+PostgreSQL y autenticación Bearer con JWT predefinido. Las entregas 1 y 2 usan
+despliegue manual en Beanstalk; la entrega 3 prepara su ejecución en contenedores.
 
 ## Ejecución local en Windows / PowerShell
 
@@ -215,3 +216,45 @@ automáticamente `.gitignore`. `.ebextensions/02_healthcheck.config` configura
 La API ya fue verificada en AWS. La versión del experimento se define en
 `application.py` y se muestra en `/health`: `exp04-immutable`.
 La publicación de Postman y los cuatro experimentos de despliegue siguen pendientes.
+
+## Contenedor para ECS / Fargate (Entrega 3)
+
+El `Dockerfile` instala las dependencias fijadas sobre Python 3.11 y ejecuta
+Gunicorn como usuario sin privilegios, con dos workers y puerto **8000**.
+Los logs se escriben en stdout/stderr para su posterior consulta en CloudWatch.
+`.dockerignore` permite únicamente código, dependencias y migraciones: `.env`,
+`task/`, `.git`, pruebas y entornos virtuales quedan fuera del contexto de build.
+
+Con Docker Desktop en modo Linux, desde la raíz del proyecto:
+
+```powershell
+docker build --platform linux/amd64 -t blacklists-api:fargate-v1 .
+docker image inspect blacklists-api:fargate-v1 --format '{{.Os}}/{{.Architecture}}'
+```
+
+El segundo comando debe mostrar `linux/amd64`, correspondiente a Linux/X86_64
+en la definición de tarea de ECS. Construir la imagen no inicia la API ni
+publica nada en ECR.
+
+Al ejecutar el contenedor, proporcionar `DATABASE_URL`, `JWT_SECRET_KEY` y
+`APP_VERSION` mediante el entorno de ejecución. En ECS, usar referencias a
+secretos para la conexión y firma JWT. No incluir sus valores en el Dockerfile,
+argumentos de build, archivos versionados ni capturas.
+
+`APP_VERSION` permite identificar el despliegue desde `/health`; cuando no se
+configura, se conserva `exp04-immutable` como valor por defecto histórico.
+El servicio y target groups de ECS deben usar puerto 8000 y health check `/health`.
+Configurar `TRUSTED_PROXY_HOPS` solo después de validar la cadena de proxies y
+restringir el acceso a las tareas al balanceador.
+
+Las migraciones se incluyen en la imagen, pero se ejecutan como operación
+separada con `python -m flask --app application db upgrade`, antes de abrir
+tráfico y con acceso a PostgreSQL. No se ejecutan por cada worker al arrancar.
+Las configuraciones `.ebextensions` pertenecen a Beanstalk y no se usan en ECS.
+
+Validación local del 15 de noviembre de 2026: imagen Linux/amd64 construida,
+migraciones aplicadas sobre PostgreSQL 16 temporal, health 200, POST 201, GET 200,
+autenticación 401 sin token y persistencia tras reiniciar el contenedor de la API.
+Se comprobó usuario UID 10001 y ausencia de `.env`, `task/`, `.git` y `.venv`.
+Publicación inicial en ECR pendiente. `buildspec.yml` todavía corresponde al CI de
+Entrega 2; su adaptación a ECR/CodeDeploy se realizará en la etapa de CI/CD.
