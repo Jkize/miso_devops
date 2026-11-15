@@ -13,7 +13,8 @@ def test_post_blacklist_returns_201(client, headers, payload, session):
         environ_base={"REMOTE_ADDR": "203.0.113.10"},
     )
 
-    assert response.status_code == 201
+    # Fallo controlado de CI: la API devuelve 201, esta expectativa es deliberada.
+    assert response.status_code == 200
     assert response.json == {"message": "Correo agregado a la lista negra."}
     session.add.assert_called_once()
     entry = session.add.call_args.args[0]
