@@ -256,5 +256,30 @@ Validación local del 15 de noviembre de 2026: imagen Linux/amd64 construida,
 migraciones aplicadas sobre PostgreSQL 16 temporal, health 200, POST 201, GET 200,
 autenticación 401 sin token y persistencia tras reiniciar el contenedor de la API.
 Se comprobó usuario UID 10001 y ausencia de `.env`, `task/`, `.git` y `.venv`.
-Publicación inicial en ECR pendiente. `buildspec.yml` todavía corresponde al CI de
-Entrega 2; su adaptación a ECR/CodeDeploy se realizará en la etapa de CI/CD.
+El flujo de Entrega 2 se conserva en `buildspec.yml`. La entrega 3 utiliza
+`buildspec-cd.yml`: ejecuta las mismas 35 pruebas, construye la imagen Linux/amd64,
+la publica en ECR con una etiqueta única por build y genera `imageDetail.json`,
+`taskdef.json` y `appspec.yaml`. Si las pruebas fallan, no publica una imagen nueva.
+
+El pipeline `blacklists-cd` escucha pushes a `main` y usa el proyecto
+`blacklists-cd-build`. Tras Build exitoso, CodeDeploy realiza el despliegue
+blue/green al servicio `blacklists-fargate-service`, cluster
+`blacklists-fargate-cluster`, mediante el controlador `CODE_DEPLOY`.
+La configuración usa una tarea Fargate Linux/X86_64, 0.25 vCPU y 512 MiB,
+puerto 8000, dos grupos de destino IP y un ALB con listener HTTP 80.
+Los grupos de seguridad permiten acceso a las tareas solo desde el ALB,
+y a PostgreSQL solo desde los grupos autorizados de la aplicación.
+
+`taskdef.json` define la tarea y la versión visible en `/health`; CodePipeline
+reemplaza `<IMAGE1_NAME>` con la imagen publicada. `appspec.yaml` contiene
+`<TASK_DEFINITION>`, que se reemplaza por el ARN de la nueva revisión de tarea.
+DATABASE_URL y JWT_SECRET_KEY se inyectan desde parámetros SecureString de SSM;
+sus valores no forman parte de la imagen ni de estos archivos.
+El log group `/ecs/blacklists-fargate` conserva los registros por siete días.
+CodeDeploy tiene rollback automático ante fallos y retira la versión anterior
+un minuto después del cambio exitoso de tráfico.
+
+El esquema PostgreSQL existente de RDS se reutiliza; no hubo cambios de esquema
+en esta entrega. Para futuros cambios aplicar las migraciones de forma controlada
+antes de abrir tráfico. Las ejecuciones y experimentos se documentan por separado
+con sus commits, IDs, resultados y capturas reales.
